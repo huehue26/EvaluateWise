@@ -14,6 +14,13 @@ export default function EvaluateAnswer() {
   const [openEvaluationPopUp, setopenEvaluationPopUp] = useState(false);
 
   const evaluateAnswerHandler = async () => {
+    // const formData = new FormData();
+    // formData.append("file", filesFolder[i]);
+    // const response = await axios.post(
+    //   "",
+    //   formData
+    // );
+    console.log(answerSheetFile);
     setopenEvaluationPopUp(true)
   };
 
@@ -104,13 +111,15 @@ export default function EvaluateAnswer() {
               id="dropzone-file"
               type="file"
               className="hidden"
-              value={answerSheetFile}
               onChange={(e) => setanswerSheetFile(e.target.files[0])}
             />
           </label>
         </div>
         <div>
-          <button className="py-2 mt-6 ml-2 rounded px-12 bg-blue-600 text-slate-50" onClick={()=>evaluateAnswerHandler()}>
+          <button
+            className="py-2 mt-6 ml-2 rounded px-12 bg-blue-600 text-slate-50"
+            onClick={() => evaluateAnswerHandler()}
+          >
             Evaluate
           </button>
         </div>

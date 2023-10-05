@@ -9,7 +9,7 @@ export default function UploadQuestion() {
       <div className="m-2 md:m-10 mt-24 p-2 md:p-10 bg-white rounded-3xl ">
         <Header category="Pages" title="Upload Question" />
         <div>
-          <div className="flex flex-row justify-center items-center m-10">
+          <div className="flex flex-row justify-center items-center">
             <div className="h-30 hover:bg-rose-50 transition duration-500 hover:scale-105 hover:shadow-2xl w-72 m-10 p-10 rounded-xl shadow-xl shadow-gray-400 border-4 border-white border-t-rose-500 cursor-pointer">
               <Link href="/upload-question/english">
                 <div>
