@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/router";
+import { useStateContext } from "../Contexts/ContextProvider";
 
 function Login() {
   const [userid, setuserid] = useState("");
@@ -10,6 +11,7 @@ function Login() {
   const { t } = useTranslation();
 
   const router = useRouter();
+  const { setuser } = useStateContext();
 
   const loginHandler = async () => {
     const response = await axios.post("/api/login", {
@@ -18,6 +20,8 @@ function Login() {
     });
     console.log(response.data);
     if (response.data.user) {
+      console.log(response.data.user);
+      setuser(userid);
       router.push("/");
     } else {
       seterr(response.data.message);

@@ -27,13 +27,13 @@ const Sidebar = () => {
       {activeMenu && (
         <>
           <div className="flex justify-between items-center">
-            {/* <Link
+            <Link
               href="/"
               onClick={handleCloseSidebar}
               className="items-center gap-3 ml-3 mt-4 flex text-xl font-extrabold tracking-tight dark:text-white text-slate-900"
             >
-              <img src={mail_logo} className="h-20" />
-            </Link> */}
+              <img src='/logo.png' className="h-20 mt-10" />
+            </Link>
             <TooltipComponent content="Menu" position="BottomCenter">
               <button
                 type="button"

@@ -8,15 +8,13 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "next/router";
 
 const UserProfile = () => {
-  const { currentColor } = useStateContext();
+  const { currentColor, setuser } = useStateContext();
   const { t } = useTranslation();
   const router = useRouter();
 
-  // const user = JSON.parse(localStorage.getItem("userDetails"));
-  const user = null;
   const logoutHandler = async () => {
-    localStorage.removeItem("userDetails");
-    navigate("/login");
+    setuser()
+    router.push("/login")
   };
 
   return (

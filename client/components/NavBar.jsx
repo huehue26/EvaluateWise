@@ -36,9 +36,9 @@ const Navbar = () => {
     isClicked,
     setScreenSize,
     screenSize,
+    user
   } = useStateContext();
   // const user = JSON.parse(localStorage.getItem("userDetails"));
-  const user = null
 
   useEffect(() => {
     const handleResize = () => setScreenSize(window.innerWidth);
@@ -110,7 +110,7 @@ const Navbar = () => {
             <p>
               <span className="text-gray-400 text-14">{t("Hi")},</span>{" "}
               <span className="text-gray-400 font-bold ml-1 text-14">
-                {user && user.name}
+                {user}
               </span>
             </p>
             <MdKeyboardArrowDown className="text-gray-400 text-14" />
