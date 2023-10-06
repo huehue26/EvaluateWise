@@ -89,5 +89,5 @@ class RetrieveThenReadClient():
         return {
             "data_points": self.results,
             "answer": chat_completion.choices[0].message.content,
-            "marks": marks
+            "score": int(marks)/max_marks * 100
         }

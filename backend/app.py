@@ -7,12 +7,13 @@ from azure.search.documents import SearchClient
 from azure.keyvault.secrets import SecretClient
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS, cross_origin
 from Model.model import RetrieveThenReadClient
 from dotenv import load_dotenv
 from OCR.trOcr import process_image
 load_dotenv()
 app = Flask(__name__)
-
+CORS(app)
 tenant_id = os.getenv("AZURE_TENANT_ID")
 client_id = os.getenv("AZURE_CLIENT_ID")
 client_secret = os.getenv("AZURE_CLIENT_SECRET")
@@ -35,7 +36,7 @@ model_client = RetrieveThenReadClient(
 def ask(question, answer, max_marks=2):
     try:
         run = model_client.run(question, answer, max_marks,
-                               request.json.get("overrides") or {})
+                               request.form.get("overrides") or {})
         return jsonify(run), 200
     except Exception as e:
         logging.exception("Exception in /ask")
@@ -44,10 +45,13 @@ def ask(question, answer, max_marks=2):
 
 @app.route("/translate_image", methods=["POST"])
 def process_image_to_text():
+    print(request)
     try:
-        file = request.files['image']
+        file = request.files['image'].read()
+        question = request.form['question']
         text = process_image(file)
-        return ask(request["question"], text)
+        print(text)
+        return ask(question, text)
     except Exception as e:
         logging.exception("Exception in /translate_image")
         return jsonify({"error": str(e)}), 500
