@@ -45,6 +45,7 @@ module.exports = {
       },
       height: {
         80: '80px',
+        112:"30rem"
       },
       minHeight: {
         590: '590px',
