@@ -5,15 +5,19 @@ import openai
 from azure.identity import ClientSecretCredential
 from azure.search.documents import SearchClient
 from azure.keyvault.secrets import SecretClient
-
+from azure.core.credentials import AzureKeyCredential
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 from Model.model import RetrieveThenReadClient
 from dotenv import load_dotenv
 from OCR.trOcr import process_image
+from Model.compare import TextSimilarity
+from DocUploads.uploadToBlob import UploadToBlobClient
+
+from DocUploads.utils import remove_non_english
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
+cors = CORS(app)
 tenant_id = os.getenv("AZURE_TENANT_ID")
 client_id = os.getenv("AZURE_CLIENT_ID")
 client_secret = os.getenv("AZURE_CLIENT_SECRET")
@@ -27,31 +31,57 @@ print(os.environ.get("AZURE_SEARCH_INDEX"))
 search_client = SearchClient(
     endpoint=os.environ.get("SEARCH_SERVICE"),
     index_name=os.environ.get("AZURE_SEARCH_INDEX"),
-    credential=credential
+    credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
 )
 model_client = RetrieveThenReadClient(
     search_client, os.environ.get("GPT_MODEL"))
 
+comparison_client = TextSimilarity(os.environ.get("EMBEDDING_MODEL"))
+upload_client = UploadToBlobClient()
 
-def ask(question, answer, max_marks=2):
+
+@app.route("/ask_question", methods=["POST"])
+def ask():
+    question = request.json['question']
+    subject = request.json['subject']
+    type = request.json["type"]
     try:
-        run = model_client.run(question, answer, max_marks,
-                               request.form.get("overrides") or {})
+        run = model_client.run(question, subject,
+                               type, request.json.get("overrides") or {})
         return jsonify(run), 200
     except Exception as e:
         logging.exception("Exception in /ask")
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/upload_file", methods=["POST"])
+def uploadFiles():
+    if "pdf_file" in request.files:
+        file = request.files["pdf_file"]
+        subject = request.form["subject"]
+        upload_client.upload_to_storage(
+            file, file.filename.split(".")[0], subject)
+        return "File uploaded successfully", 200
+
+    else:
+        return "No file uploaded or could not parse", 400
+
+
 @app.route("/translate_image", methods=["POST"])
-def process_image_to_text():
-    print(request)
+@cross_origin()
+def process_image_to_text_and_compare():
+    max_marks = int(request.form["marks"])
+    model_ans = request.form["answer"]
     try:
-        file = request.files['image'].read()
-        question = request.form['question']
+        file = request.files["image"].read()
         text = process_image(file)
-        print(text)
-        return ask(question, text)
+        marks_obtained = comparison_client.determine_marks(
+            max_marks, model_ans, text)
+        text = remove_non_english(text)
+        response = {"userAnswer": text,
+                    "score": marks_obtained,
+                    "answer": model_ans}
+        return jsonify(response), 200
     except Exception as e:
         logging.exception("Exception in /translate_image")
         return jsonify({"error": str(e)}), 500

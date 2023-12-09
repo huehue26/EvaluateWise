@@ -4,9 +4,17 @@ import openai
 from azure.search.documents.aio import SearchClient
 from azure.search.documents.models import QueryType
 
+import numpy as np
+from numpy.linalg import norm
+
 
 def nonewlines(s: str) -> str:
     return s.replace("\n", " ").replace("\r", " ")
+
+
+def get_embedding(text, model):
+    text = text.replace("\n", " ")
+    return openai.Embedding.create(input=[text], model=model)['data'][0]['embedding']
 
 
 class RetrieveThenReadClient():
@@ -16,9 +24,10 @@ class RetrieveThenReadClient():
     (answer) with that prompt.
     """
     template = \
-        "Answer the following question= as precisely as possible" + \
+        "Answer the following question as precisely as possible given the content as the source." + \
         """
-        {q}?
+        question = {q}? keeping in mind that subject is {subject} and it is a {type} answer
+        content = {content}
         """
 
     def __init__(
@@ -29,20 +38,7 @@ class RetrieveThenReadClient():
         self.search_client = search_client
         self.openai_deployment = openai_deployment
 
-    def compare(self, gpt_generated_ans: str, user_ans: str, max_marks: int):
-        prompt = f" Given a model answer {gpt_generated_ans} and a user answer {user_ans} rate the answer based on a score out of {max_marks} on the basis of how close it is to the model answer."
-        completion = openai.ChatCompletion.create(
-            model=self.openai_deployment,
-            messages=[
-                {"role": "system", "content": "Only return a single integer"},
-                {"role": "user", "content": prompt,
-                 }],
-            temperature=0,
-            max_tokens=32
-        )
-        return completion.choices[0].message.content
-
-    def run(self, query: str, answer_str: str, max_marks: int, overrides: dict[str, Any]) -> dict[str, Any]:
+    def run(self, query: str, subject: str, type: str, overrides: dict[str, Any]) -> dict[str, Any]:
         use_semantic_captions = True if overrides.get(
             "semantic_captions") else False
         top = overrides.get("top", 3)
@@ -61,33 +57,33 @@ class RetrieveThenReadClient():
             )
         else:
             r = self.search_client.search(
-                query
+                query,
+                top=3,
             )
-        # if use_semantic_captions:
-        #     self.results = [nonewlines(
-        #         " . ".join([c.text for c in doc['@search.captions']])) for doc in r]
-        # else:
-        #     self.results = [
-        #         nonewlines(doc["content"][:500]) for doc in r]
-
-        self.results = ""
+        self.results = []
+        self.result_sources = set()
+        if use_semantic_captions:
+            self.results = [nonewlines(
+                " . ".join([c.text for c in doc['@search.captions']])) for doc in r]
+        else:
+            for doc in r:
+                self.results.append(doc["content"][:256])
+                self.result_sources.add(doc["source"])
+        result_sources = ",".join(list(self.result_sources))
         content = "\n".join(self.results)
-
-        prompt = self.template.format(q=query)
+        prompt = self.template.format(
+            q=query, subject=subject, type=type, content=content)
         chat_completion = openai.ChatCompletion.create(
             model=self.openai_deployment,
             messages=[{
-                "role": "user", "content": query
+                "role": "user", "content": prompt
             }],
             temperature=overrides.get("temperature") or 0.3,
-            max_tokens=200,
+            max_tokens=300,
         )
 
-        marks = self.compare(
-            chat_completion.choices[0].message.content, answer_str, max_marks)
-
         return {
-            "data_points": self.results,
+            "sources": result_sources,
+            "prompt": prompt,
             "answer": chat_completion.choices[0].message.content,
-            "score": int(marks)/max_marks * 100
         }
