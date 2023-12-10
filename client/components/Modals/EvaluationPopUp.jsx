@@ -5,7 +5,9 @@ export default function EvaluationPopUp({
   question,
   correctAnswer,
   score,
+  maxMarks,
   userAnswer,
+  sources,
   setopenPopUp,
 }) {
   return (
@@ -36,17 +38,15 @@ export default function EvaluationPopUp({
               <div className='font-bold'>Your Answer : </div>
               <div>{userAnswer}</div>
             </div>
-            <div className='mt-6'>
-              <div className='mt-2 bg-gray-600 rounded-full'>
-                <div
-                  className='mt-2 bg-blue-500 text-center rounded-full'
-                  style={{ width: `${score}%` }}
-                >
-                  <div className='text-white text-sm inline-block bg-blue-500 px-2 rounded-full'>
-                    {score}% correct answer
-                  </div>
-                </div>
+            <div className='pt-3 overflow-y-scroll h-52 w-full'>
+              <div className='font-bold'>Your marks : </div>
+              <div>
+                {score} / {maxMarks}
               </div>
+            </div>
+            <div className='pt-3 overflow-y-scroll h-52 w-full'>
+              <div className='font-bold'>Sources used: </div>
+              <div>{sources}</div>
             </div>
           </div>
         </div>
