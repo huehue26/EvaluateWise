@@ -27,10 +27,9 @@ export default function EvaluateAnswer() {
     formData.append('answer', questionDetails.answer)
     formData.append('type', questionDetails.type)
     const response = await axios.post(
-      'http://127.0.0.1:5000/translate_image',
+      'http://127.0.0.1:5000/api/v1/translate_image',
       formData
     )
-    console.log(response)
     setModelAnswer(response['data']['answer'])
     setUserScore(response['data']['score'])
     setUserAnswer(response['data']['userAnswer'])
@@ -82,7 +81,6 @@ export default function EvaluateAnswer() {
                       name='list-radio'
                       className='h-4 w-4'
                       onClick={() => {
-                        console.log(question)
                         setquestionDetails(question)
                       }}
                     />

@@ -11,18 +11,20 @@ export default async function AddQuestion(req, res) {
     try {
       const collection = db.collection(subject)
 
-      const response = await axios.post('http://127.0.0.1:5000/ask_question', {
-        question: title,
-        subject: subject,
-        type: type,
-      })
+      const response = await axios.post(
+        'http://127.0.0.1:5000/api/v1/ask_question',
+        {
+          question: title,
+          subject: subject,
+          type: type,
+        }
+      )
 
       const question = {
         title: req.body.title,
         max_marks: req.body.max_marks,
         type: req.body.type,
         answer: response.data.answer,
-        sources: response.data.sources,
       }
       await collection.insertOne(question)
       res.json('Success')

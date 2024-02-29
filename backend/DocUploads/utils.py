@@ -1,56 +1,32 @@
-from pdfminer.converter import TextConverter
-from pdfminer.layout import LAParams
-from pdfminer.pdfdocument import PDFDocument
-from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
-from pdfminer.pdfpage import PDFPage
-from pdfminer.pdfparser import PDFParser
+from langchain_community.document_loaders import PyPDFLoader
 
-import json
-from io import StringIO
+import os
 import re
+from dotenv import load_dotenv
+load_dotenv()
 
 
 class Utils:
     @staticmethod
-    def convert_PDF_to_text(pdf_file: object, title: str, chunk_size=256):
+    def load_PDF_file(pdf_file: str, extract_images: bool = False) -> list[object]:
         """
-        Convert PDF file into text.
+        Convert PDF file into text using PyPDF Loader.
 
         Parameters:
         -------------
-        pdf_file: pdf file content read as a byte string
-        chunk_size: number of characters in each chunk
+        pdf_file: Path to PDF file to be loaded
+        extract_images: Whether to extract images or not, increases time to load.
 
         Returns:
         ------------
-        Chunks of text in json objects
+        List of Document objects.
         """
-        output_string = StringIO()  # Where result will be stored
 
-        parser = PDFParser(pdf_file)  # Parser for parsing the given PDF file.
-        doc = PDFDocument(parser)
-
-        rsrmgr = PDFResourceManager()
-        # Convert PDF doc into strings of text.
-        device = TextConverter(rsrmgr, output_string, laparams=LAParams())
-
-        # Interpret the text contained in the file.
-        interpreter = PDFPageInterpreter(rsrmgr, device)
-
-        for page in PDFPage.create_pages(doc):
-            interpreter.process_page(page)
-        text = output_string.getvalue()
-
-        chunks = []
-
-        for i in range(0, len(text), chunk_size):
-            chunks.append(
-                {"content": text[i:i+chunk_size], "source": title})
-        chunk_lines = "\n".join(json.dumps(chunk) for chunk in chunks)
-        return chunk_lines
+        loader = PyPDFLoader(file_path=pdf_file, extract_images=extract_images)
+        return loader.load()
 
 
-def preprocess_text(text: str):
+def preprocess_text(text: str) -> str:
     """
     Helper function to pre-process the text.
 
@@ -63,11 +39,11 @@ def preprocess_text(text: str):
     Processed string of text
     """
 
-    text = remove_stopword_removal(text)
+    text = stopword_removal(text)
     return remove_non_english(text)
 
 
-def remove_stopword_removal(text: str):
+def stopword_removal(text: str) -> str:
     """
     Remove stopwords like a/an/the from the text
 
@@ -82,7 +58,7 @@ def remove_stopword_removal(text: str):
 
     # Create a list of stopword tokens.
     stopwords = []
-    with open(r'C:\Users\krish\OneDrive\Desktop\Coding Stuff\BTP\EvaluateWise\backend\DocUploads\stopWords.txt', 'r') as f:
+    with open(os.environ.get("STOPWORDS_PATH"), 'r') as f:
         for word in f:
             word = word.split('\n')
             stopwords.append(word[0])
@@ -93,7 +69,7 @@ def remove_stopword_removal(text: str):
     return " ".join(tokens)
 
 
-def remove_non_english(text: str):
+def remove_non_english(text: str) -> str:
     """
     Remove non-english characters from the string.
 

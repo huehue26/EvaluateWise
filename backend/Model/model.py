@@ -1,103 +1,138 @@
 from typing import Any
-import openai
-from azure.search.documents.aio import SearchClient
-from azure.search.documents.models import QueryType
+import os
+from dotenv import load_dotenv
+
+from langchain.prompts import PromptTemplate
+from langchain.schema.document import Document
+from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.retrievers import BaseRetriever
+
+load_dotenv()
 
 
 def nonewlines(s: str) -> str:
     return s.replace("\n", " ").replace("\r", " ")
 
 
-class RetrieveThenReadClient():
-    """
-    Simple retrieve-then-read implementation, using the Cognitive Search and OpenAI APIs directly. It first retrieves
-    top documents from search, then constructs a prompt with them, and then uses OpenAI to generate an completion
-    (answer) with that prompt.
-    """
-    template = \
-        "Answer the following question as precisely as possible given the content as the source." + \
-        """
-        question = {q}? keeping in mind that subject is {subject} and it is a {type} answer
-        content = {content}
-        """
+class ModelClient():
 
     def __init__(
         self,
-        search_client: SearchClient,
-        openai_deployment: str,
-    ):
-        self.search_client = search_client
-        self.openai_deployment = openai_deployment
+        retriever: BaseRetriever,
+    ) -> None:
+        self.retriever = retriever
 
-    def run(self, query: str, subject: str, type: str, overrides: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def build_first_pass() -> PromptTemplate:
         """
-        Run the model inference to get results back.
+        Builds the first pass of the Tree of thought model.
 
         Parameters:
-        -----------
-        query: The query to be processed.
-        subject: The subject to which the query belongs (English,hindi, maths)
-
-        type: The type of question (Short answer,long answer,coding)
-        overrides: Any kind of optional parameter for AI Search.
+        ------------
+        None
 
         Returns:
-        sources: The source from which the results were derived.
-        answer: The model generated answer to the query.
+        -----------
+        A prompt template containing the tree of thoughts prompt.
         """
 
-        # If semantic captions on, use hit highlighting
-        use_semantic_captions = True if overrides.get(
-            "semantic_captions") else False
-        top = overrides.get("top", 3)
+        template = """
+        You are a helpful AI Q&A agent. Given the question: {question}, answer it using the given context: {context}. If context is unhelpful, respond on your own if you know the answer.
+        A:
+        """
+        prompt = PromptTemplate(
+            input_variables=["question", "context"], template=template)
+        return prompt
 
-        # Use semantic ranker if requested and if retrieval mode is text or hybrid (vectors + text)
-        if overrides.get("semantic_ranker"):
-            r = self.search_client.search(
-                query,
-                filter=filter,
-                query_type=QueryType.SEMANTIC,
-                query_language="en-us",
-                query_speller="lexicon",
-                semantic_configuration_name="default",
-                top=3,
-                query_caption="extractive|highlight-false" if use_semantic_captions else None,
-            )
-        else:
-            r = self.search_client.search(
-                query,
-                top=3,
-            )
-        self.results = []
-        self.result_sources = set()
+    @staticmethod
+    def build_second_pass() -> PromptTemplate:
+        """
+        Builds the second pass of the Tree of thought model.
 
-        if use_semantic_captions:
-            self.results = [nonewlines(
-                " . ".join([c.text for c in doc['@search.captions']])) for doc in r]
+        Parameters:
+        ------------
+        None
 
-        else:
-            for doc in r:
-                self.results.append(doc["content"][:256])
-                self.result_sources.add(doc["source"])
-
-        result_sources = ",".join(list(self.result_sources))
-        content = "\n".join(self.results)
-
-        # Add the necessary params to the prompt template
-        prompt = self.template.format(
-            q=query, subject=subject, type=type, content=content)
-
-        # Generate the completion to derive the answer for the query.
-        chat_completion = openai.ChatCompletion.create(
-            model=self.openai_deployment,
-            messages=[{
-                "role": "user", "content": prompt
-            }],
-            temperature=overrides.get("temperature") or 0.3,
-            max_tokens=300,
+        Returns:
+        -----------
+        A prompt template containing the tree of thoughts prompt.
+        """
+        template = """
+        Implement and provide a final answer given the steps to perform: {answers}
+        A:
+        """
+        prompt = PromptTemplate(
+            input_variables=["question", "answers"],
+            template=template
         )
+        return prompt
 
-        return {
-            "sources": result_sources,
-            "answer": chat_completion.choices[0].message.content,
-        }
+    @staticmethod
+    def content_extractor(docs: list[Document]) -> list[str]:
+        """
+        Extracts the page content from the retrieved results.
+
+        Parameters:
+        ------------
+        docs: List of Documents retrieved by the retriever.
+
+        Returns:
+        ------------
+        The extracted content from the results.
+        """
+
+        return list(map(lambda x: x.page_content, docs))
+
+    @staticmethod
+    def retrieve_required_model(question_type: str, temperature: float = 0.3) -> object:
+        """
+        Selects which model is to be used depending on the question.
+
+        Parameters: 
+        ------------
+        question_type: Type of question asked. Can be one of ['General','Maths','Coding'].
+        temperature:  Temperature setting of the model to be used.
+
+        Returns:
+        ------------
+        A Completion Model to return.
+        """
+
+        if question_type == "General":
+            return ChatOpenAI(temperature=temperature, model="gpt-3.5-turbo")
+        if question_type == "Maths":
+            return ChatOpenAI(temperature=0.1, model="gpt-4")
+        if question_type == "Coding":
+            return ChatOpenAI(temperature=temperature)
+
+    def run(self, query: str, subject: str, question_type: str, overrides: dict[str, Any]) -> dict[str, Any]:
+        """
+        Returns the result of user query after evaluating it through the RAG pipeline. 
+
+        Parameters:
+        -------------
+        query: A string denoting the question user asked.
+        subject: The subject to which the question is related.
+        question_type: Type of question asked. Can be one of ['General','Maths','Coding'].
+        overrides: A dictionary denoting other optional parameters.
+
+        Returns:
+        ------------
+        A dictionary of values denoting the model result.
+        """
+
+        # Fetch the required model
+        model = self.retrieve_required_model(
+            question_type=question_type, temperature=overrides.get("temperature") or 0.3)
+
+        # Chain to parse model output.
+        model_parser = model | StrOutputParser()
+
+        # Chain responsible for runnning the RAG pipeline.
+        chain = ({"context": self.retriever.return_retriever() | RunnableLambda(self.content_extractor), "question": RunnablePassthrough(
+        )} | self.build_first_pass() | {"answer": model_parser})
+
+        answer = chain.invoke(query)
+        return answer

@@ -1,91 +1,105 @@
 import logging
 import os
-
 import openai
-from azure.identity import ClientSecretCredential
-from azure.search.documents import SearchClient
-from azure.keyvault.secrets import SecretClient
-from azure.core.credentials import AzureKeyCredential
+from dotenv import load_dotenv
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 
-from Model.model import RetrieveThenReadClient
-from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_experimental.text_splitter import SemanticChunker
+from langsmith import Client
 
+from Model.model import ModelClient
+from Model.retriever import RetrieverClient
+from DocUploads.uploadToVectorStore import UploadToVectorStoreClient
 from OCR.trOcr import process_image
 from Model.compare import TextSimilarity
-from DocUploads.uploadToBlob import UploadToBlobClient
 from DocUploads.utils import remove_non_english
 
 load_dotenv()
 
 app = Flask(__name__)
 cors = CORS(app)
-# Credentials for Azure Autentication.
-tenant_id = os.getenv("AZURE_TENANT_ID")
-client_id = os.getenv("AZURE_CLIENT_ID")
-client_secret = os.getenv("AZURE_CLIENT_SECRET")
 
-credential = ClientSecretCredential(
-    tenant_id=tenant_id, client_id=client_id, client_secret=client_secret)
-
-secret_client = SecretClient(
-    os.getenv("KEYVAULT_URL"), credential=credential)
+# Setup Langsmith Client for logging.
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
+client = Client()
 
 # Setting up openai credentials.
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
+openai.api_version = "2023-05-15"
 
-# Azure AI Search Client
-search_client = SearchClient(
-    endpoint=os.environ.get("SEARCH_SERVICE"),
-    index_name=os.environ.get("AZURE_SEARCH_INDEX"),
-    credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
-)
+# Azure AI Search Settings
+vector_store_address: str = os.environ.get("SEARCH_SERVICE")
+vector_store_password: str = os.environ.get("AZURE_SEARCH_KEY")
+index_name: str = os.environ.get("INDEX_NAME")
 
+# Embedding Model Settings
+model_name = "BAAI/bge-small-en"
+model_kwargs = {"device": "cpu"}
+encode_kwargs = {"normalize_embeddings": True}
+
+
+# Upload Client
+upload_client = UploadToVectorStoreClient(HuggingFaceBgeEmbeddings, model_name, model_kwargs,
+                                          encode_kwargs, vector_store_address, vector_store_password, index_name)
+# Defining the Vector Store
+vector_store = upload_client.get_vector_store()
+
+
+retriver = RetrieverClient(vector_store=vector_store,
+                           llm=ChatOpenAI(temperature=0), weights=[0.5, 0.5])
 # RAG model client
-model_client = RetrieveThenReadClient(
-    search_client, os.environ.get("GPT_MODEL"))
+model_client = ModelClient(retriever=retriver)
 
-# Cosine Similarity client
+# Similarity client
 comparison_client = TextSimilarity(os.environ.get("EMBEDDING_MODEL"))
 
-# Azure Blob Storage client
-upload_client = UploadToBlobClient()
 
-
-@app.route("/ask_question", methods=["POST"])
+@app.route("/api/v1/ask_question", methods=["POST"])
 def ask():
     question = request.json['question']
     subject = request.json['subject']
     type = request.json["type"]
+    if type not in ["General", "Maths", "Coding"]:
+        raise Exception("Unknown type")
 
     try:
-        run = model_client.run(question, subject,
+        res = model_client.run(question, subject,
                                type, request.json.get("overrides") or {})
-        return jsonify(run), 200
+        return jsonify(res), 200
 
     except Exception as e:
         logging.exception("Exception in /ask")
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/upload_file", methods=["POST"])
+@app.route("/api/v1/upload_file", methods=["POST"])
 def uploadFiles():
-    if "pdf_file" in request.files:
+    try:
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=256,
+            chunk_overlap=20,
+            length_function=len
+        )
         file = request.files["pdf_file"]
-        subject = request.form["subject"]
-
-        upload_client.upload_to_storage(
-            file, file.filename.split(".")[0], subject)
+        file.save(os.environ.get("FILE_PATH"))
+        upload_client.upload_to_vectorStore(
+            os.environ.get("FILE_PATH"), text_splitter, False)
         return "File uploaded successfully", 200
 
-    else:
+    except:
         return "No file uploaded or could not parse", 400
+    finally:
+        os.remove(os.environ.get("FILE_PATH"))
 
 
-@app.route("/translate_image", methods=["POST"])
+@app.route("/api/v1/translate_image", methods=["POST"])
 @cross_origin()
 def process_image_to_text_and_compare():
     max_marks = int(request.form["marks"])
@@ -97,6 +111,15 @@ def process_image_to_text_and_compare():
         marks_obtained = comparison_client.determine_marks(
             max_marks, model_ans, text)
         text = remove_non_english(text)
+        chat_completion = openai.chat.completions.create(
+            model=os.getenv("GPT_MODEL"),
+            messages=[{
+                "role": "user", "content": "Rearrange the content using same words in a cohesive manner and correct spelling mistakes: " + text
+            }],
+            temperature=0.1,
+            max_tokens=300)
+        text = chat_completion.choices[0].message.content
+
         response = {"userAnswer": text,
                     "score": marks_obtained,
                     "answer": model_ans}
