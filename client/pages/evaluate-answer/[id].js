@@ -27,7 +27,7 @@ export default function EvaluateAnswer() {
     formData.append('answer', questionDetails.answer)
     formData.append('type', questionDetails.type)
     const response = await axios.post(
-      'http://127.0.0.1:5000/api/v1/translate_image',
+      `${process.env.API_URI}/api/v1/translate_image`,
       formData
     )
     setModelAnswer(response['data']['answer'])

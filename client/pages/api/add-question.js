@@ -12,7 +12,7 @@ export default async function AddQuestion(req, res) {
       const collection = db.collection(subject)
 
       const response = await axios.post(
-        'http://127.0.0.1:5000/api/v1/ask_question',
+        `${process.env.API_URI}/api/v1/ask_question`,
         {
           question: title,
           subject: subject,
