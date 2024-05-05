@@ -19,8 +19,7 @@ from OCR.trOcr import process_image
 from Model.compare import TextSimilarity
 from DocUploads.utils import remove_non_english
 
-load_dotenv()
-
+load_dotenv(override=True)
 app = Flask(__name__)
 cors = CORS(app)
 
@@ -66,12 +65,13 @@ def ask():
     question = request.json['question']
     subject = request.json['subject']
     type = request.json["type"]
+    marks = request.json["marks"] or 3
     if type not in ["General", "Maths", "Coding"]:
         raise Exception("Unknown type")
 
     try:
         res = model_client.run(question, subject,
-                               type, request.json.get("overrides") or {})
+                               type, marks, request.json.get("overrides") or {})
         return jsonify(res), 200
 
     except Exception as e:
@@ -114,7 +114,7 @@ def process_image_to_text_and_compare():
         chat_completion = openai.chat.completions.create(
             model=os.getenv("GPT_MODEL"),
             messages=[{
-                "role": "user", "content": "Rearrange the content using same words in a cohesive manner and correct spelling mistakes: " + text
+                "role": "user", "content": "Rearrange the content using same words in a cohesive manner. Do not change the words used!!: " + text
             }],
             temperature=0.1,
             max_tokens=300)

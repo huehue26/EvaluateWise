@@ -24,7 +24,7 @@ export default function AddQuestionPopUp({
       const response = await axios.post('/api/add-question', {
         subject: subject,
         title: quesTitle,
-        max_marks: quesMaxMarks,
+        marks: quesMaxMarks,
         type: quesType,
       })
       setSuccessMessage('Question added successfully!')

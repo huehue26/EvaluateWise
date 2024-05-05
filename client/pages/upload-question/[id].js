@@ -124,14 +124,14 @@ export default function UploadQuestion() {
           ''
         )}
 
-        <div className='m-2 md:m-10 mt-24 p-2 md:p-10 bg-white rounded-3xl '>
+        <div className='p-2 bg-white rounded-3xl '>
           <div className='mb-10'>
             <p className='flex'>
               <p className='text-3xl text-start font-extrabold tracking-tight text-slate-900'>
                 Upload Documents
               </p>
               <p
-                className='rounded-full font-bold text-2xl ml-5 cursor-pointer px-2 hover:bg-slate-200'
+                className='rounded-full font-bold text-2xl ml-5 cursor-pointer  hover:bg-slate-200'
                 onClick={() => setopenUploadDocument(true)}
               >
                 +

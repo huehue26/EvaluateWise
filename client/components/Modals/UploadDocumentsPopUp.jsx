@@ -23,7 +23,7 @@ export default function UploadQuestionPopup({
       formData.append('pdf_file', questionContext)
       setLoading(true)
       const response = await axios.post(
-        `${process.env.API_URI}/api/v1/upload_file`,
+        `http://127.0.0.1:5000/api/v1/upload_file`,
         formData
       )
 
@@ -43,7 +43,7 @@ export default function UploadQuestionPopup({
 
   return (
     <div className='z-50 h-screen w-screen fixed inset-0 bg-black bg-opacity-25 backdrop-blur-sm flex items-center justify-center overflow-y-hidden'>
-      <div className='h-5/6 w-1/2 p-6 bg-gray-100 flex items-center justify-center rounded-lg'>
+      <div className=' w-1/2 p-6 bg-gray-100 flex items-center justify-center rounded-lg'>
         <div className='h-full container max-w-screen-lg mx-auto'>
           <div>
             <h2 className='font-semibold text-xl flex justify-between items-center text-gray-800 mb-5'>

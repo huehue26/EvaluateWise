@@ -20,7 +20,7 @@ def get_embedding(text: str, model: str) -> list[float]:
     """
 
     text = text.replace("\n", " ")
-    text = preprocess_text(text)
+    # text = preprocess_text(text)
     return openai.embeddings.create(input=[text], model=model).data[0].embedding
 
 
@@ -68,4 +68,5 @@ class TextSimilarity():
         """
 
         similarity = self.compare(gpt_generated_ans, user_ans)
-        return round(max(0, similarity*max_marks)) if similarity > 0.78 else 0
+        print(similarity)
+        return round(max(0, (similarity + 0.15)*max_marks))

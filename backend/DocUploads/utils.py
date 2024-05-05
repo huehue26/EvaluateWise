@@ -58,7 +58,7 @@ def stopword_removal(text: str) -> str:
 
     # Create a list of stopword tokens.
     stopwords = []
-    with open(os.environ.get("STOPWORDS_PATH"), 'r') as f:
+    with open(r"EvaluateWise\backend\DocUploads\stopWords.txt", 'r') as f:
         for word in f:
             word = word.split('\n')
             stopwords.append(word[0])

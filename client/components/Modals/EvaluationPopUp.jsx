@@ -38,7 +38,7 @@ export default function EvaluationPopUp({
               <div className='font-bold'>Your Answer : </div>
               <div>{userAnswer}</div>
             </div>
-            <div className='pt-3 overflow-y-scroll h-52 w-full'>
+            <div className='pt-3 h-52 w-full'>
               <div className='font-bold'>Your marks : </div>
               <div>
                 {score} / {maxMarks}

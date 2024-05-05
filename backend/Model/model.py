@@ -107,7 +107,7 @@ class ModelClient():
         if question_type == "Coding":
             return ChatOpenAI(temperature=temperature)
 
-    def run(self, query: str, subject: str, question_type: str, overrides: dict[str, Any]) -> dict[str, Any]:
+    def run(self, query: str, subject: str, question_type: str, marks: int, overrides: dict[str, Any]) -> dict[str, Any]:
         """
         Returns the result of user query after evaluating it through the RAG pipeline. 
 
@@ -122,6 +122,10 @@ class ModelClient():
         ------------
         A dictionary of values denoting the model result.
         """
+        marks_vs_words = ["20 words", "40 words",
+                          "70 words", "100 words", "150 words"]
+
+        query = query + " " + marks_vs_words[marks-1]
 
         # Fetch the required model
         model = self.retrieve_required_model(
